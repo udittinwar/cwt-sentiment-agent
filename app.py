@@ -6,7 +6,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.dirname(__file__))
-from src.data_ingestion import fetch_prices, fetch_apify_posts, fetch_tavily_news, demo_posts
+from src.data_ingestion import fetch_prices, fetch_apify_posts, fetch_tavily_news, demo_posts, load_local_apify_csv
 from src.sentiment import score_posts, aggregate_sentiment
 from src.feature_engineering import build_features
 from src.model import train_forecast, walk_forward_evaluate
@@ -41,14 +41,18 @@ try:
         prices = fetch_prices(ticker, period_arg, interval)
     start, end = prices["timestamp"].min(), prices["timestamp"].max()
     query = f'"{ticker.replace("-USD","")} OR {ticker}"'
-    posts, post_status = [], ""
-    try:
-        posts, post_status = fetch_apify_posts(query)
-    except Exception as exc:
-        post_status = f"Apify unavailable: {exc}"
-        posts = []
-
+    posts, post_status = load_local_apify_csv()
+    sentiment_source = ""
     if posts:
+        sentiment_source = "Real Apify X posts (local CSV; limited sample)"
+    else:
+        try:
+            posts, post_status = fetch_apify_posts(query, max_items=20)
+        except Exception as exc:
+            post_status = f"Apify unavailable: {exc}"
+            posts = []
+
+    if posts and sentiment_source != "Real Apify X posts (local CSV; limited sample)":
         sentiment_source = "Live Apify X data"
     elif use_demo:
         posts = demo_posts(start, end, ticker)

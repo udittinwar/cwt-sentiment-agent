@@ -83,3 +83,21 @@ def demo_posts(start, end, asset="Bitcoin"):
                          "views": int(rng.integers(0, 15000)),
                          "followers": int(rng.integers(50, 100000))})
     return rows
+
+
+def load_local_apify_csv(path=None):
+    """Read previously exported real X posts without starting another paid Apify run."""
+    from pathlib import Path
+    path = Path(path) if path else Path(__file__).resolve().parents[1] / "data" / "raw" / "apify_bitcoin_posts_clean.csv"
+    if not path.is_file():
+        return [], "No local Apify CSV found"
+    df = pd.read_csv(path, dtype={"tweet_id": str})
+    required = {"created_at_utc", "text", "likes", "reposts", "views", "followers"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Apify CSV missing columns: {sorted(missing)}")
+    df = df.rename(columns={"created_at_utc": "timestamp"})
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+    df = df.dropna(subset=["timestamp"]).drop_duplicates(subset=["tweet_id"] if "tweet_id" in df else ["timestamp", "text"])
+    posts = df[["timestamp", "text", "likes", "reposts", "views", "followers"]].to_dict("records")
+    return posts, f"Loaded {len(posts)} real X posts from local Apify CSV"
